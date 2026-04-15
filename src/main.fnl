@@ -5,6 +5,8 @@
 
 (var battery 100)
 (var activated 0)
+(var power_out false)
+(var power_out_timer 0)
 (var t 0)
 (var couleur-texte 2)
 (var couleur-fond 0)
@@ -146,19 +148,22 @@
 ;; TOGGLES  (avant click-zones)
 ;; =========================
 (fn toggle-light []
-  (if (= STATE.light 0)
-    (do (set activated (+ activated 1)) (tset STATE :light 1))
-    (do (set activated (- activated 1)) (tset STATE :light 0))))
+  (when (not power_out)
+    (if (= STATE.light 0)
+      (do (set activated (+ activated 1)) (tset STATE :light 1))
+      (do (set activated (- activated 1)) (tset STATE :light 0)))))
 
 (fn toggle-lever []
-  (if (= STATE.lever 0)
-    (do (set activated (+ activated 1)) (tset STATE :lever 1))
-    (do (set activated (- activated 1)) (tset STATE :lever 0))))
+  (when (not power_out)
+    (if (= STATE.lever 0)
+      (do (set activated (+ activated 1)) (tset STATE :lever 1))
+      (do (set activated (- activated 1)) (tset STATE :lever 0)))))
 
 (fn toggle-cam []
-  (if (= STATE.cam 0)
-    (do (set activated (+ activated 1)) (tset STATE :cam 1))
-    (do (set activated (- activated 1)) (tset STATE :cam 0))))
+  (when (not power_out)
+    (if (= STATE.cam 0)
+      (do (set activated (+ activated 1)) (tset STATE :cam 1))
+      (do (set activated (- activated 1)) (tset STATE :cam 0)))))
 
 ;; =========================
 ;; CLICK-ZONES  (apres les toggles)
@@ -173,8 +178,8 @@
 ;; =========================
 (fn update-ui []
   (let [(mx my mb) (mouse)
-        clicking   (and (= mb 1) (not STATE.prev-mouse))]
-    (tset STATE :prev-mouse (= mb 1))
+        clicking   (and mb (not STATE.prev-mouse))]
+    (tset STATE :prev-mouse mb)
     (tset STATE :cursor :normal)
 
     (when (= STATE.view :office)
@@ -258,7 +263,11 @@
   (print "T" 224 86 0)
   (print "E" 224 93 0)
   (rect 0 0 240 10 0)
-  (print (.. "DIFF:" STATE.difficulty " ENRV:" STATE.enervement) 2 2 7))
+  (print (.. "DIFF:" STATE.difficulty " ENRV:" STATE.enervement) 2 2 7)
+  (let [bw (math.floor (* 2.4 battery))
+        bc  (if (> battery 50) 11 (if (> battery 25) 4 8))]
+    (rect 0 130 bw 4 bc)
+    (rectb 0 130 240 4 7)))
 
 (fn draw-enlighted []
   (draw-office))
@@ -273,6 +282,13 @@
   (cls 4)
   (print "-- GENERATEUR --" 60 20 0)
   (print "F=retour office" 70 120 0))
+
+(fn draw-power-out []
+  (cls 0)
+  (print "PANNE DE COURANT" 55 50 8)
+  (let [secs (math.max 0 (- 5 (math.floor (/ power_out_timer 60))))]
+    (print (.. "Retour dans " (tostring secs) "s") 70 70 7))
+  (print "Nuit echouee..." 65 90 6))
 
 (fn draw-cam []
   (cls 0)
@@ -307,8 +323,14 @@
 ;; BATTERY
 ;; =========================
 (fn battery-update []
-  (when (> activated 0)
-    (set battery (math.max 0 (- battery (* 3 activated))))))
+  (let [drain (+ 0.2 (* activated 1.5))]
+    (set battery (math.max 0 (- battery drain))))
+  (when (and (<= battery 0) (not power_out))
+    (set power_out true)
+    (set activated 0)
+    (tset STATE :light 0)
+    (tset STATE :lever 0)
+    (tset STATE :cam 0)))
 
 ;; =========================
 ;; DEBUG
@@ -352,32 +374,43 @@
 
   ;; -- JEU --
   (when (>= menu 1)
-    (handle-input)
-    (update-ui)
-    (update-enervement)
-    (update-enemies)
-    (update-T)
+    (if power_out
+      (do
+        (set power_out_timer (+ power_out_timer 1))
+        (draw-power-out)
+        (when (>= power_out_timer 300)
+          (set power_out false)
+          (set power_out_timer 0)
+          (set battery 100)
+          (set activated 0)
+          (set menu 0)))
+      (do
+        (handle-input)
+        (update-ui)
+        (update-enervement)
+        (update-enemies)
+        (update-T)
 
-    (when (= menu 1)
-      (case STATE.view
-        :vent   (set menu 3)
-        :gen    (set menu 5)
-        :light  (set menu 2)
-        :porte  (set menu 4)
-        :cam    (set menu 6)))
+        (when (= menu 1)
+          (case STATE.view
+            :vent   (set menu 3)
+            :gen    (set menu 5)
+            :light  (set menu 2)
+            :porte  (set menu 4)
+            :cam    (set menu 6)))
 
-    (when (= menu 1) (draw-office))
-    (when (= menu 2) (draw-enlighted))
-    (when (= menu 3) (draw-vent))
-    (when (= menu 4) (draw-porte))
-    (when (= menu 5) (draw-gen))
-    (when (= menu 6) (draw-cam)))
+        (when (= menu 1) (draw-office))
+        (when (= menu 2) (draw-enlighted))
+        (when (= menu 3) (draw-vent))
+        (when (= menu 4) (draw-porte))
+        (when (= menu 5) (draw-gen))
+        (when (= menu 6) (draw-cam)))))
 
   (set t (+ t 1))
   (when (= (% t 60) 0) (battery-update))
 
   (draw-debug)
   (draw-cursor)
-  (print (.. "L:" STATE.light " V:" STATE.lever " C:" STATE.cam " BAT:" battery) 2 126 5)
+  (print (.. "L:" STATE.light " V:" STATE.lever " C:" STATE.cam " BAT:" battery) 2 126 8)
 
   (set previous_left left))
