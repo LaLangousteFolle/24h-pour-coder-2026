@@ -7,6 +7,9 @@
 (var activated 0)
 (var power_out false)
 (var power_out_timer 0)
+(var gameover false)
+(var gameover_timer 0)
+(var gameover_msg "")
 (var t 0)
 (var couleur-texte 2)
 (var couleur-fond 0)
@@ -21,7 +24,7 @@
 
 (var nights_unlocked 1)
 (var nights_completed 0)
-(var difficulty 4)
+(var difficulty 20)
 (var previous_left false)
 
 ;; =========================
@@ -30,15 +33,15 @@
 
 (fn nightSelection [x y]
   (when (and (< x 50) (> y 22) (< y 40) (>= nights_unlocked 1))
-    (set menu 1) (set difficulty 4))
+    (set menu 1) (tset STATE :difficulty 4))
   (when (and (< x 50) (> y 43) (< y 60) (>= nights_unlocked 2))
-    (set menu 1) (set difficulty 8))
+    (set menu 1) (tset STATE :difficulty 8))
   (when (and (< x 50) (> y 63) (< y 80) (>= nights_unlocked 3))
-    (set menu 1) (set difficulty 12))
+    (set menu 1) (tset STATE :difficulty 12))
   (when (and (< x 50) (> y 83) (< y 100) (>= nights_unlocked 4))
-    (set menu 1) (set difficulty 16))
+    (set menu 1) (tset STATE :difficulty 16))
   (when (and (< x 50) (> y 103) (< y 120) (>= nights_unlocked 5))
-    (set menu 1) (set difficulty 20)))
+    (set menu 1) (tset STATE :difficulty 20)))
 
 (fn displayMenu []
   (cls couleur-fond)
@@ -86,9 +89,16 @@
    :counter-msg      ""
    :counter-timer    0
 
+   :qte-cursor    0
+   :qte-dir       1
+   :qte-red-pos   50
+   :qte-hits      0
+   :qte-flash     0
+   :qte-flash-ok  false
+
    :enemies
-    [{:name "NODES" :room :nodes :timer 0 :color 2 :just-moved false}
-     {:name "DM"    :room :dm    :timer 0 :color 8 :just-moved false}]
+    [{:name "NODES" :room :nodes :timer 0 :color 2 :just-moved false :attack-timer 0}
+     {:name "DM"    :room :dm    :timer 0 :color 8 :just-moved false :attack-timer 0}]
 
    :T
     {:room       :tv-spawn
@@ -298,7 +308,46 @@
 
     ;; tick down counter message
     (when (> STATE.counter-timer 0)
-      (tset STATE :counter-timer (- STATE.counter-timer 1)))))
+      (tset STATE :counter-timer (- STATE.counter-timer 1)))
+    ;; attack timers: game over if enemy stays in main-room for 5s
+    ;; DM timer pauses while the lever is held
+    (each [_ e (ipairs STATE.enemies)]
+      (if (= e.room :main-room)
+        (do
+          (let [paused (and (= e.name "DM") (= STATE.lever 1))]
+            (when (not paused)
+              (set e.attack-timer (+ e.attack-timer 1)))
+            (when (and (>= e.attack-timer 300) (not gameover))
+              (set gameover true)
+              (set gameover_timer 0)
+              (set gameover_msg (.. e.name " t'a attrape !")))))
+        (set e.attack-timer 0)))))
+
+(fn update-qte []
+  (when (= menu 5)
+    (tset STATE :qte-cursor (+ STATE.qte-cursor (* STATE.qte-dir 1.5)))
+    (when (>= STATE.qte-cursor 160)
+      (tset STATE :qte-dir -1) (tset STATE :qte-cursor 160))
+    (when (<= STATE.qte-cursor 0)
+      (tset STATE :qte-dir 1) (tset STATE :qte-cursor 0))
+    (when (> STATE.qte-flash 0)
+      (tset STATE :qte-flash (- STATE.qte-flash 1)))
+    (when (keyp 48)
+      (let [cx (math.floor STATE.qte-cursor)]
+        (if (and (>= cx STATE.qte-red-pos)
+                 (<= cx (+ STATE.qte-red-pos 25)))
+          (do
+            (tset STATE :qte-hits (+ STATE.qte-hits 1))
+            (tset STATE :qte-red-pos (math.random 5 130))
+            (tset STATE :qte-flash 40)
+            (tset STATE :qte-flash-ok true)
+            (when (>= STATE.qte-hits 5)
+              (set battery 100)
+              (tset STATE :qte-hits 0)
+              (tset STATE :qte-flash 90)))
+          (do
+            (tset STATE :qte-flash 40)
+            (tset STATE :qte-flash-ok false)))))))
 
 ;; =========================
 ;; DRAW VIEWS
@@ -351,6 +400,26 @@
 (fn draw-gen []
   (cls 4)
   (print "-- GENERATEUR --" 60 20 0)
+  ;; 5 progress slots
+  (for [i 1 5]
+    (let [bx (+ 68 (* (- i 1) 22))]
+      (rect bx 33 18 8 (if (<= i STATE.qte-hits) 11 0))
+      (rectb bx 33 18 8 7)))
+  ;; gauge
+  (let [gx 40  gy 58  gw 160  gh 12
+        cx (math.floor STATE.qte-cursor)]
+    (rect gx gy gw gh 0)
+    (rect (+ gx STATE.qte-red-pos) gy 25 gh 8)
+    (rect (+ gx cx) gy 3 gh 7)
+    (rectb gx gy gw gh 7))
+  ;; feedback
+  (when (> STATE.qte-flash 0)
+    (if (not STATE.qte-flash-ok)
+      (print "RATE !"             96 75 8)
+      (if (> STATE.qte-flash 60)
+        (print "BATTERIE PLEINE !" 57 75 11)
+        (print "SUCCES !"          88 75 11))))
+  (print "[ESPACE] pour recharger" 40 90 0)
   (print "F=retour office" 70 120 0))
 
 (fn draw-power-out []
@@ -359,6 +428,13 @@
   (let [secs (math.max 0 (- 5 (math.floor (/ power_out_timer 60))))]
     (print (.. "Retour dans " (tostring secs) "s") 70 70 7))
   (print "Nuit echouee..." 65 90 6))
+
+(fn draw-gameover []
+  (cls 0)
+  (print "GAME OVER" 85 45 8)
+  (print gameover_msg 55 62 7)
+  (let [secs (math.max 0 (- 5 (math.floor (/ gameover_timer 60))))]
+    (print (.. "Retour dans " (tostring secs) "s") 70 80 6)))
 
 (fn draw-cam []
   (cls 0)
@@ -442,18 +518,42 @@
   (when (= menu 0)
     (displayMenu)
     (when (and (= previous_left false) (= left true))
-      (nightSelection x y)))
+      (let [prev menu]
+        (nightSelection x y)
+        (when (> menu prev)
+          ;; full reset on new night
+          (set battery 100) (set activated 0) (set t 0)
+          (set power_out false) (set power_out_timer 0)
+          (set gameover false) (set gameover_timer 0)
+          (tset STATE :light 0) (tset STATE :lever 0) (tset STATE :cam 0)
+          (tset STATE :view :office)
+          (tset STATE :enervement 0) (tset STATE :enrv-timer 0)
+          (tset STATE :nodes-flashes 0)
+          (tset STATE :dm-hold-timer 0) (tset STATE :dm-hold-required 0)
+          (tset STATE :qte-hits 0) (tset STATE :qte-cursor 0) (tset STATE :qte-dir 1)
+          (each [_ e (ipairs STATE.enemies)]
+            (set e.room (if (= e.name "NODES") :nodes :dm))
+            (set e.timer 0) (set e.attack-timer 0) (set e.just-moved false))
+          (let [T STATE.T]
+            (set T.room :tv-spawn) (set T.timer 0) (set T.just-moved false))))))
 
   ;; -- JEU --
   (when (>= menu 1)
-    (if power_out
+    (if gameover
+      (do
+        (set gameover_timer (+ gameover_timer 1))
+        (draw-gameover)
+        (when (>= gameover_timer 300)
+          (set gameover false)
+          (set gameover_timer 0)
+          (set menu 0)))
+      power_out
       (do
         (set power_out_timer (+ power_out_timer 1))
         (draw-power-out)
         (when (>= power_out_timer 300)
           (set power_out false)
           (set power_out_timer 0)
-          (set battery 100)
           (set activated 0)
           (set menu 0)))
       (do
@@ -463,6 +563,8 @@
         (update-enemies)
         (update-T)
         (update-counters)
+        (update-qte)
+        (when (= (% t 60) 0) (battery-update))
 
         (when (= menu 1)
           (case STATE.view
@@ -480,7 +582,6 @@
         (when (= menu 6) (draw-cam)))))
 
   (set t (+ t 1))
-  (when (= (% t 60) 0) (battery-update))
 
   (draw-debug)
   (draw-cursor)
