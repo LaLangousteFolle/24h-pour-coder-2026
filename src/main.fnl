@@ -14,6 +14,9 @@
   ;; 1. Nettoie l'écran
   (cls couleur-fond)
   
+  ;; Ajout d'un sfx
+  sfx(2,"F#-6")
+
   ;; 2. Calcule un petit mouvement de vague
   (var decalage-y (* (math.sin t) 5))
   
