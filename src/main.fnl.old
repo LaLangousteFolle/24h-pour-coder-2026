@@ -1,0 +1,448 @@
+;; title:  Five Nights at CERI's
+;; author: Noe SEILER
+;; desc:   Pathfinding + UI overlay interactive
+;; script: fennel
+
+;; =========================
+;; GRAPH
+;; =========================
+(global graph
+  {:nodes           [[:couloir-ouest-1 100]]
+   :couloir-ouest-1 [[:foyer           80]
+                     [:couloir-ouest-2 20]]
+   :foyer           [[:couloir-ouest-2 100]]
+   :dm              [[:sas-amphi       100]]
+   :sas-amphi       [[:couloir-sud     100]]
+   :couloir-sud     [[:couloir-ouest-2 90]
+                     [:main-room       10]]
+   :couloir-ouest-2 [[:main-room       100]]
+   :main-room       []})
+
+;; =========================
+;; CONSTANTES
+;; =========================
+(global NIGHT-DURATION 21600) ;; 6min * 60fps * 60sec
+(global tv-stages [:tv-spawn :tv-bout :tv-milieu :tv-porte])
+
+;; =========================
+;; STATE GLOBAL
+;; =========================
+(global SAVE
+  {:nights-unlocked  1
+   :nights-completed 0})
+
+(global STATE
+  {:menu          0      ;; 0=titre 1=jeu 2=mort 3=victoire
+   :difficulty    4
+   :night         1
+   :night-timer   0
+   :enervement    0
+   :enrv-timer    0
+   :log           []
+   :view          :office
+   :cursor        :normal
+   :prev-mouse    false
+   :killer        ""     ;; nom de l'ennemi qui a tue
+   :porte-fermee  false
+   :energie       100    ;; courant electrique 0-100
+   :energie-timer 0
+   :debug         false
+
+   :enemies
+    [{:name "NODES" :room :nodes :timer 0 :color 2 :just-moved false}
+     {:name "DM"    :room :dm    :timer 0 :color 8 :just-moved false}]
+
+   :T
+    {:room       :tv-spawn
+     :timer      0
+     :energie    100
+     :just-moved false}})
+
+;; =========================
+;; POSITIONS DEBUG MAP
+;; =========================
+(global room-pos
+  {:nodes           [30  20]
+   :couloir-ouest-1 [30  40]
+   :foyer           [30  60]
+   :couloir-ouest-2 [80  80]
+   :main-room       [80  100]
+   :dm              [180 20]
+   :sas-amphi       [180 40]
+   :couloir-sud     [180 60]
+   :tv-spawn        [130 15]
+   :tv-bout         [130 38]
+   :tv-milieu       [130 61]
+   :tv-porte        [130 84]})
+
+;; =========================
+;; ZONES UI
+;; =========================
+(global hover-zones
+  [{:x 10  :y 2   :w 220 :h 18 :target :vent  :label "VENT"}
+   {:x 10  :y 116 :w 160 :h 18 :target :gen   :label "GEN"}
+   {:x 220 :y 30  :w 18  :h 76 :target :porte :label "PORTE"}])
+
+(global click-zones
+  [{:x 2 :y 55 :w 18 :h 12 :target :cam-a :label "CAM A"}
+   {:x 2 :y 72 :w 18 :h 12 :target :cam-b :label "CAM B"}])
+
+;; =========================
+;; HELPERS
+;; =========================
+(fn in-zone? [mx my z]
+  (and (>= mx z.x) (<= mx (+ z.x z.w))
+       (>= my z.y) (<= my (+ z.y z.h))))
+
+(fn add-log [msg]
+  (table.insert STATE.log 1 msg)
+  (when (> (length STATE.log) 4) (table.remove STATE.log)))
+
+(fn move-frames []
+  (math.max 60
+    (- 300
+       (* STATE.difficulty 8)
+       (* STATE.enervement 1.5))))
+
+(fn weighted-pick [transitions]
+  (let [total (accumulate [s 0 _ [_ w] (ipairs transitions)] (+ s w))
+        roll  (math.random 1 total)]
+    (var acc 0)
+    (var result nil)
+    (each [_ [dest w] (ipairs transitions) &until result]
+      (set acc (+ acc w))
+      (when (>= acc roll) (set result dest)))
+    result))
+
+(fn should-move? []
+  (<= (math.random 1 20) STATE.difficulty))
+
+(fn tv-stage-index []
+  (var idx 1)
+  (each [i s (ipairs tv-stages) &until (= s STATE.T.room)]
+    (set idx i))
+  idx)
+
+(fn reset-game [night diff]
+  (tset STATE :menu         1)
+  (tset STATE :difficulty   diff)
+  (tset STATE :night        night)
+  (tset STATE :night-timer  0)
+  (tset STATE :enervement   0)
+  (tset STATE :enrv-timer   0)
+  (tset STATE :log          [])
+  (tset STATE :view         :office)
+  (tset STATE :killer       "")
+  (tset STATE :porte-fermee false)
+  (tset STATE :energie      100)
+  (tset STATE :energie-timer 0)
+  (tset STATE :prev-mouse   false)
+  (tset STATE :enemies
+    [{:name "NODES" :room :nodes :timer 0 :color 2 :just-moved false}
+     {:name "DM"    :room :dm    :timer 0 :color 8 :just-moved false}])
+  (tset STATE.T :room :tv-spawn)
+  (tset STATE.T :timer 0)
+  (tset STATE.T :energie 100)
+  (tset STATE.T :just-moved false))
+
+(fn game-over [killer]
+  (tset STATE :killer killer)
+  (tset STATE :menu 2))
+
+(fn victoire []
+  (tset SAVE :nights-completed (+ SAVE.nights-completed 1))
+  (when (< SAVE.nights-unlocked 5)
+    (tset SAVE :nights-unlocked (+ SAVE.nights-unlocked 1)))
+  (tset STATE :menu 3))
+
+;; =========================
+;; UPDATE ENNEMIS
+;; =========================
+(fn update-enemies []
+  (each [_ e (ipairs STATE.enemies)]
+    (set e.just-moved false)
+    (set e.timer (+ e.timer 1))
+    (when (>= e.timer (move-frames))
+      (set e.timer 0)
+      (when (should-move?)
+        (let [transitions (. graph e.room)]
+          (when (and transitions (> (length transitions) 0))
+            (let [next (weighted-pick transitions)]
+              (set e.just-moved true)
+              (add-log (.. e.name "->" (tostring next)))
+              (sfx 0 -1 -1 0)
+              (set e.room next)
+              ;; GAME OVER si ennemi atteint main-room
+              (when (= next :main-room)
+                (game-over e.name)))))))))
+
+(fn update-T []
+  (let [t STATE.T]
+    (set t.just-moved false)
+    (set t.timer (+ t.timer 1))
+    (when (>= t.timer (move-frames))
+      (set t.timer 0)
+      (when (should-move?)
+        (let [idx (tv-stage-index)]
+          (when (< idx 4)
+            (let [next-room (. tv-stages (+ idx 1))]
+              (set t.just-moved true)
+              (set t.room next-room)
+              (add-log (.. "T->" (tostring next-room)))
+              (sfx 1 -1 -1 0)
+              ;; GAME OVER si T devant la porte et porte ouverte
+              (when (and (= next-room :tv-porte)
+                         (not STATE.porte-fermee))
+                (game-over "T")))))))))
+
+(fn update-enervement []
+  (tset STATE :enrv-timer (+ STATE.enrv-timer 1))
+  (when (>= STATE.enrv-timer 600)
+    (tset STATE :enrv-timer 0)
+    (tset STATE :enervement (math.min 100 (+ STATE.enervement 1)))))
+
+(fn update-energie []
+  ;; La porte fermee consomme du courant
+  (when STATE.porte-fermee
+    (tset STATE :energie-timer (+ STATE.energie-timer 1))
+    (when (>= STATE.energie-timer 120) ;; -1 toutes les 2sec
+      (tset STATE :energie-timer 0)
+      (tset STATE :energie (math.max 0 (- STATE.energie 1)))
+      ;; Plus de courant : porte s'ouvre
+      (when (= STATE.energie 0)
+        (tset STATE :porte-fermee false)
+        (add-log "COURANT COUPE!")))))
+
+(fn update-night-timer []
+  (tset STATE :night-timer (+ STATE.night-timer 1))
+  (when (>= STATE.night-timer NIGHT-DURATION)
+    (victoire)))
+
+;; =========================
+;; UI LOGIC
+;; =========================
+(fn update-ui [mx my mb]
+  (let [clicking (and (= mb 1) (not STATE.prev-mouse))]
+    (tset STATE :prev-mouse (= mb 1))
+    (tset STATE :cursor :normal)
+
+    (when (= STATE.view :office)
+      (each [_ z (ipairs hover-zones)]
+        (when (in-zone? mx my z)
+          (tset STATE :view z.target))))
+
+    (each [_ z (ipairs click-zones)]
+      (when (in-zone? mx my z)
+        (tset STATE :cursor :pointer)
+        (when clicking
+          (tset STATE :view z.target)
+          (add-log (.. ">" z.label)))))))
+
+;; =========================
+;; DRAW VIEWS JEU
+;; =========================
+(fn draw-office []
+  (cls 13)
+  (rect 10  2   220 18 5)
+  (rect 10  116 160 18 5)
+  (rect 2   55  18  12 6)
+  (rect 2   72  18  12 6)
+  (rect 220 30  18  76 (if STATE.porte-fermee 0 6))
+  (print "VENT"  100 8   0)
+  (print "GEN"   80  122 0)
+  (print "A"     7   59  0)
+  (print "B"     7   76  0)
+  (print "P" 224 60 7)
+  (print "O" 224 67 7)
+  (print "R" 224 74 7)
+  (print "T" 224 81 7)
+  (print "E" 224 88 7)
+  ;; Timer nuit (converti en secondes lisibles)
+  (let [remaining (- NIGHT-DURATION STATE.night-timer)
+        secs      (math.floor (/ remaining 60))
+        mins      (math.floor (/ secs 60))
+        s         (% secs 60)]
+    (print (.. "NUIT " STATE.night "  " mins ":" (if (< s 10) "0" "") s) 2 2 7))
+  ;; Energie
+  (print (.. "COURANT:" STATE.energie "%") 140 2 (if (< STATE.energie 20) 2 7))
+  ;; Jauge courant
+  (rect 140 8 (math.floor (* 0.95 STATE.energie)) 3
+        (if (< STATE.energie 20) 2 3)))
+
+(fn draw-vent []
+  (cls 1)
+  (print "-- VENTILATION --" 65 15 7)
+  (print (.. "T position: " (tostring STATE.T.room)) 30 40 4)
+  (print (.. "T energie: " STATE.T.energie) 30 52 4)
+  (print "F = retour office" 65 120 5))
+
+(fn draw-gen []
+  (cls 4)
+  (print "-- GENERATEUR --" 65 15 0)
+  (print (.. "Courant: " STATE.energie "%") 70 50 0)
+  (rect 50 65 (math.floor (* 1.4 STATE.energie)) 8 0)
+  (print "F = retour office" 65 120 0))
+
+(fn draw-cam [label]
+  (cls 0)
+  (print (.. "-- CAMERA " label " --") 70 15 7)
+  (each [i e (ipairs STATE.enemies)]
+    (print (.. e.name ": " (tostring e.room)) 30 (+ 40 (* i 12)) e.color))
+  (print (.. "T: " (tostring STATE.T.room)) 30 68 4)
+  (print "F = retour office" 65 120 6))
+
+(fn draw-porte []
+  (cls 6)
+  (print "-- PORTE DROITE --" 65 15 0)
+  (if STATE.porte-fermee
+    (do
+      (print "[ FERMEE ]" 80 55 0)
+      (print "clic = ouvrir" 75 68 0))
+    (do
+      (print "[ OUVERTE ]" 78 55 2)
+      (print "clic = fermer" 75 68 0)))
+  (print (.. "Courant: " STATE.energie "%") 75 90 0)
+  (print "F = retour office" 65 120 0))
+
+;; =========================
+;; CURSEUR
+;; =========================
+(fn draw-cursor [mx my]
+  (if (= STATE.cursor :pointer)
+    (do
+      (line mx (- my 4) mx (+ my 4) 7)
+      (line (- mx 4) my (+ mx 4) my 7)
+      (circb mx my 3 7))
+    (do
+      (line mx my (+ mx 5) (+ my 3) 12)
+      (line mx my (+ mx 2) (+ my 5) 12)
+      (line (+ mx 2) (+ my 5) (+ mx 5) (+ my 3) 12))))
+
+;; =========================
+;; DEBUG
+;; =========================
+(fn draw-debug [mx my]
+  (when STATE.debug
+    (print (.. "MX:" mx " MY:" my " V:" (tostring STATE.view)) 2 126 12)
+    (each [_ z (ipairs hover-zones)]
+      (rectb z.x z.y z.w z.h 10))
+    (each [_ z (ipairs click-zones)]
+      (rectb z.x z.y z.w z.h 2))))
+
+;; =========================
+;; ECRAN TITRE
+;; =========================
+(fn draw-titre [mx my clicking]
+  (cls 0)
+  (print "Five Nights at CERI's" 48 8 6)
+  (for [i 1 5]
+    (let [y      (+ 30 (* (- i 1) 20))
+          locked (> i SAVE.nights-unlocked)
+          color  (if locked 13 7)
+          hover  (and (not locked)
+                      (>= mx 10) (<= mx 120)
+                      (>= my y)  (<= my (+ y 12)))]
+      (when hover (tset STATE :cursor :pointer))
+      (print (.. "Nuit " i) 10 y (if hover 10 color))
+      (when locked (print "[verrou]" 70 y 13))
+      (when (and hover clicking)
+        (reset-game i (* i 4))))))
+
+;; =========================
+;; ECRAN GAME OVER
+;; =========================
+(fn draw-mort [clicking]
+  (cls 2)
+  (print "GAME OVER" 80 30 7)
+  (print (.. STATE.killer " vous a eu...") 55 55 7)
+  (print "Nuit " 80 80 7)
+  (print (tostring STATE.night) 110 80 7)
+  (print "[ Reessayer ]" 68 105 0)
+  (when (and (>= _mx 68) (<= _mx 172)
+             (>= _my 105) (<= _my 115)
+             clicking)
+    (reset-game STATE.night STATE.difficulty)))
+
+;; =========================
+;; ECRAN VICTOIRE
+;; =========================
+(fn draw-victoire [clicking]
+  (cls 3)
+  (print "SURVIE !" 85 30 7)
+  (print (.. "Nuit " STATE.night " completee !") 50 55 0)
+  (when (< SAVE.nights-unlocked 5)
+    (print (.. "Nuit " (+ STATE.night 1) " debloquee !") 48 70 7))
+  (print "[ Menu ]" 88 105 0)
+  (when (and (>= _mx 88) (<= _mx 152)
+             (>= _my 105) (<= _my 115)
+             clicking)
+    (tset STATE :menu 0)))
+
+;; =========================
+;; INPUT JEU
+;; =========================
+(fn handle-input-jeu [mx my clicking]
+  ;; F = retour office
+  (when (keyp 6) (tset STATE :view :office))
+  ;; debug toggle
+  (when (keyp 2) (tset STATE :debug (not STATE.debug)))
+  ;; clic sur la porte dans la vue porte
+  (when (and (= STATE.view :porte) clicking)
+    (tset STATE :porte-fermee (not STATE.porte-fermee))
+    (add-log (if STATE.porte-fermee "PORTE FERMEE" "PORTE OUVERTE"))))
+
+;; =========================
+;; TIC
+;; =========================
+(math.randomseed 42)
+
+;; variables globales pour les ecrans mort/victoire
+(global _mx 0)
+(global _my 0)
+
+(fn _G.TIC []
+  (var (mx my mb) (mouse))
+  (set _mx mx)
+  (set _my my)
+  (let [clicking (and (= mb 1) (not STATE.prev-mouse))]
+
+    (case STATE.menu
+
+      ;; -- TITRE --
+      0 (do
+          (tset STATE :cursor :normal)
+          (draw-titre mx my clicking)
+          (draw-cursor mx my))
+
+      ;; -- JEU --
+      1 (do
+          (handle-input-jeu mx my clicking)
+          (update-ui mx my mb)
+          (update-enervement)
+          (update-energie)
+          (update-night-timer)
+          (update-enemies)
+          (update-T)
+          (case STATE.view
+            :office (draw-office)
+            :vent   (draw-vent)
+            :gen    (draw-gen)
+            :cam-a  (draw-cam "A")
+            :cam-b  (draw-cam "B")
+            :porte  (draw-porte))
+          (draw-debug mx my)
+          (draw-cursor mx my))
+
+      ;; -- GAME OVER --
+      2 (do
+          (tset STATE :cursor :normal)
+          (draw-mort clicking)
+          (draw-cursor mx my))
+
+      ;; -- VICTOIRE --
+      3 (do
+          (tset STATE :cursor :normal)
+          (draw-victoire clicking)
+          (draw-cursor mx my))))
+
+  (tset STATE :prev-mouse (= mb 1)))

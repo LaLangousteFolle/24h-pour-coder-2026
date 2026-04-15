@@ -1,12 +1,12 @@
-;; title:  Comportement Ennemis + UI FNAF
-;; author: Noe SEILER
-;; desc:   Pathfinding + UI overlay interactive
+;; title:  FNAC
+;; author: N/A (Manchot Analfabete)
+;; desc:   Un peu tout
 ;; script: fennel
 
 
 (var t 0)
 
-(var couleur-texte 6)
+(var couleur-texte 2)
 (var couleur-fond 0)
 (var menu 0) ;; ID of the screen that needs to be shown
 ;; menu 0 -> main screen
@@ -36,7 +36,7 @@
  (print night 10 (* i 22) couleur-texte) ;
  (> i nights_unlocked)
     ;;Nights locked so far
-    (print night 10 (* i 22) 10)
+    (print night 10 (* i 22) 15)
 )))
 
 (lambda nightSelection [x y]
@@ -369,9 +369,6 @@
   (if (= menu 0)
   (do
   (displayMenu)
-  (print pressed 100 100 couleur-texte)
-  (print left 100 110 couleur-texte)
-  (print previous_left 100 120 couleur-texte)
   (if ( and (= previous_left false) (= left true))
   (nightSelection x y))
   )
