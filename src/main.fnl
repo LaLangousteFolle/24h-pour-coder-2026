@@ -66,6 +66,12 @@
    :couloir-ouest-2 [[:main-room       100]]
    :main-room       []})
 
+(global cameras
+  [{:name "Amphi Blaise"     :room :dm}
+   {:name "SAS Amphi Blaise" :room :sas-amphi}
+   {:name "Couloir Ouest"    :room :couloir-ouest-1}
+   {:name "Nodes"            :room :nodes}])
+
 ;; =========================
 ;; STATE
 ;; =========================
@@ -81,6 +87,7 @@
    :lever       0
    :light       0
    :cam         0
+   :cam-index   0
 
    :nodes-flashes    0
    :nodes-prev-light 0
@@ -95,6 +102,11 @@
    :qte-hits      0
    :qte-flash     0
    :qte-flash-ok  false
+
+   :shark-stage        0
+   :shark-timer        0
+   :shark-attack-timer 0
+   :shark-prev-click   false
 
    :enemies
     [{:name "NODES" :room :nodes :timer 0 :color 2 :just-moved false :attack-timer 0}
@@ -185,8 +197,8 @@
 (fn toggle-cam []
   (when (not power_out)
     (if (= STATE.cam 0)
-      (do (set activated (+ activated 1)) (tset STATE :cam 1))
-      (do (set activated (- activated 1)) (tset STATE :cam 0)))))
+      (do (set activated (+ activated 1)) (tset STATE :cam 1) (tset STATE :view :cam))
+      (do (set activated (- activated 1)) (tset STATE :cam 0) (tset STATE :view :office) (set menu 1)))))
 
 ;; =========================
 ;; CLICK-ZONES  (apres les toggles)
@@ -218,7 +230,13 @@
             (z.action)
             (do
               (tset STATE :view z.target)
-              (add-log (.. ">" z.label)))))))))
+              (add-log (.. ">" z.label)))))))
+    ;; cam nav: left/right buttons
+    (when (and (= menu 6) clicking (>= my 3) (<= my 17))
+      (when (and (>= mx 4) (<= mx 18))
+        (tset STATE :cam-index (% (+ STATE.cam-index (- (length cameras) 1)) (length cameras))))
+      (when (and (>= mx 222) (<= mx 236))
+        (tset STATE :cam-index (% (+ STATE.cam-index 1) (length cameras)))))))
 
 ;; =========================
 ;; ENEMIES
@@ -349,6 +367,33 @@
             (tset STATE :qte-flash 40)
             (tset STATE :qte-flash-ok false)))))))
 
+(fn update-shark []
+  (let [(mx my mb) (mouse)
+        clicking (and mb (not STATE.shark-prev-click))]
+    (tset STATE :shark-prev-click mb)
+    ;; stage progression: 0->1->2->3, one step every 7s
+    (when (< STATE.shark-stage 3)
+      (tset STATE :shark-timer (+ STATE.shark-timer 1))
+      (when (>= STATE.shark-timer 420)
+        (tset STATE :shark-stage (+ STATE.shark-stage 1))
+        (tset STATE :shark-timer 0)))
+    ;; stage 3: click center to push back to stg1, else -50 battery after 5s
+    (when (= STATE.shark-stage 3)
+      (tset STATE :shark-attack-timer (+ STATE.shark-attack-timer 1))
+      (when (and clicking
+                 (>= mx 96) (<= mx 144)
+                 (>= my 58) (<= my 86)
+                 (or (= menu 1) (= menu 2)))
+        (tset STATE :shark-stage 1)
+        (tset STATE :shark-timer 0)
+        (tset STATE :shark-attack-timer 0))
+      (when (>= STATE.shark-attack-timer 300)
+        (set battery (math.max 0 (- battery 50)))
+        (add-log "SHARK-50bat")
+        (tset STATE :shark-stage 0)
+        (tset STATE :shark-timer 0)
+        (tset STATE :shark-attack-timer 0)))))
+
 ;; =========================
 ;; DRAW VIEWS
 ;; =========================
@@ -383,6 +428,14 @@
           (rectb 70 45 100 5 7))))
     (when (> STATE.counter-timer 0)
       (print STATE.counter-msg 65 56 7)))
+  ;; shark
+  (when (> STATE.shark-stage 0)
+    (print (.. "stg" STATE.shark-stage) 108 70
+      (if (= STATE.shark-stage 3) 8 7))
+    (when (= STATE.shark-stage 3)
+      (rectb 96 58 48 28 8)
+      (let [secs (math.max 1 (math.ceil (/ (- 300 STATE.shark-attack-timer) 60)))]
+        (print (.. secs "s") 116 88 8))))
   (let [bw (math.floor (* 2.4 battery))
         bc  (if (> battery 50) 11 (if (> battery 25) 4 8))]
     (rect 0 130 bw 4 bc)
@@ -437,14 +490,34 @@
     (print (.. "Retour dans " (tostring secs) "s") 70 80 6)))
 
 (fn draw-cam []
-  (cls 0)
-  (print "-- CAMERA --" 70 20 7)
-  (each [i e (ipairs STATE.enemies)]
-    (print (.. e.name ": " (tostring e.room)) 30 (+ 40 (* i 10)) e.color))
-  (print (.. "T: " (tostring STATE.T.room)) 30 70 4)
-  (each [i msg (ipairs STATE.log)]
-    (print msg 30 (+ 80 (* i 8)) 6))
-  (print "F=retour office" 70 120 6))
+  (cls 1)
+  (let [cam (. cameras (+ STATE.cam-index 1))
+        nx  (math.floor (/ (- 240 (* (length cam.name) 6)) 2))]
+    ;; top bar
+    (rect 0 0 240 20 0)
+    ;; left button
+    (rectb 4 3 14 14 7)
+    (print "<" 8 7 7)
+    ;; right button
+    (rectb 222 3 14 14 7)
+    (print ">" 226 7 7)
+    ;; camera name centered
+    (print cam.name nx 7 7)
+    (line 0 20 239 20 7)
+    ;; enemies present in this room
+    (var row 0)
+    (each [_ e (ipairs STATE.enemies)]
+      (when (= e.room cam.room)
+        (print (.. "!! " e.name " !!") 85 (+ 55 (* row 12)) e.color)
+        (set row (+ row 1))))
+    (when (= STATE.T.room cam.room)
+      (print "!! T !!" 96 (+ 55 (* row 12)) 4)
+      (set row (+ row 1)))
+    (when (= row 0)
+      (print "Calme..." 94 65 5))
+    ;; event log
+    (each [i msg (ipairs STATE.log)]
+      (print msg 10 (+ 100 (* i 8)) 6))))
 
 (fn draw-porte []
   (cls 6)
@@ -497,6 +570,9 @@
 ;; =========================
 (fn handle-input []
   (when (keyp 6)
+    (when (= STATE.cam 1)
+      (set activated (- activated 1))
+      (tset STATE :cam 0))
     (tset STATE :view :office)
     (set menu 1))
   (when (keyp 2)
@@ -531,6 +607,8 @@
           (tset STATE :nodes-flashes 0)
           (tset STATE :dm-hold-timer 0) (tset STATE :dm-hold-required 0)
           (tset STATE :qte-hits 0) (tset STATE :qte-cursor 0) (tset STATE :qte-dir 1)
+          (tset STATE :shark-stage 0) (tset STATE :shark-timer 0) (tset STATE :shark-attack-timer 0)
+          (tset STATE :cam-index 0)
           (each [_ e (ipairs STATE.enemies)]
             (set e.room (if (= e.name "NODES") :nodes :dm))
             (set e.timer 0) (set e.attack-timer 0) (set e.just-moved false))
@@ -564,6 +642,7 @@
         (update-T)
         (update-counters)
         (update-qte)
+        (update-shark)
         (when (= (% t 60) 0) (battery-update))
 
         (when (= menu 1)
