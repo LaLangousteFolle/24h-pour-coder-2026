@@ -17,3 +17,6 @@ desktop.ini
 *.sln
 *.sw?
 .local/
+
+assets/.local/
+tic80.exe

@@ -18,7 +18,7 @@
   (var decalage-y (* (math.sin t) 5))
   
   ;; 3. Affiche le texte au centre avec l'effet de vague
-  (print "WORKFLOW OPERATIONNEL !" 45 (+ 64 decalage-y) couleur-texte)
+  (print "GOOGOO GAAGAA !" 45 (+ 64 decalage-y) couleur-texte)
   
   ;; 4. Fait avancer le temps
   (set t (+ t 0.1)))
