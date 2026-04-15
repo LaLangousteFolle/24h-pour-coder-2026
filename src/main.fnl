@@ -3,69 +3,48 @@
 ;; desc:   Un peu tout
 ;; script: fennel
 
-
+(var battery 100)
+(var activated 0)
 (var t 0)
-
 (var couleur-texte 2)
 (var couleur-fond 0)
-(var menu 0) ;; ID of the screen that needs to be shown
+(var menu 0)
+
 ;; menu 0 -> main screen
-;; menu 1 -> main point of view without light
-;; menu 2 -> main point of view with light
-;; menu 3 -> Vent point of view
-;; menu 4 -> Right door point of view
-;; menu 5 -> generator point of  view
+;; menu 1 -> office sans lumiere
+;; menu 2 -> office avec lumiere
+;; menu 3 -> vent
+;; menu 4 -> porte droite
+;; menu 5 -> generateur
 
-(var nights_unlocked 1) ;; Number of nights unlocked
-(var nights_completed 0) ;; Number of nights completed
-(var difficulty 4) ;;Difficulty of the game
-(var previous_left false) ;;used to make sure that it's a simple click
+(var nights_unlocked 1)
+(var nights_completed 0)
+(var difficulty 4)
+(var previous_left false)
 
-(lambda displayMenu []
+;; =========================
+;; MENU TITRE
+;; =========================
 
-;;Display the main title
-(cls couleur-fond)
-(print "Five Nights at CERI's" 60 0 couleur-texte)
+(fn nightSelection [x y]
+  (when (and (< x 50) (> y 22) (< y 40) (>= nights_unlocked 1))
+    (set menu 1) (set difficulty 4))
+  (when (and (< x 50) (> y 43) (< y 60) (>= nights_unlocked 2))
+    (set menu 1) (set difficulty 8))
+  (when (and (< x 50) (> y 63) (< y 80) (>= nights_unlocked 3))
+    (set menu 1) (set difficulty 12))
+  (when (and (< x 50) (> y 83) (< y 100) (>= nights_unlocked 4))
+    (set menu 1) (set difficulty 16))
+  (when (and (< x 50) (> y 103) (< y 120) (>= nights_unlocked 5))
+    (set menu 1) (set difficulty 20)))
 
-;;Display the different nights
-(var night "Night ")
-(for [i 1 5]
-(set night (.. "Night " (tostring i)))
-(if (<= i nights_unlocked)
- ;;Nights unlocked so far
- (print night 10 (* i 22) couleur-texte) ;
- (> i nights_unlocked)
-    ;;Nights locked so far
-    (print night 10 (* i 22) 15)
-)))
-
-(lambda nightSelection [x y]
-
-(if (and ( and (< x 50 ) ( and (> y 22) (< y 40) ) ) (>= nights_unlocked 1))
-  (set menu 1)
-  (set difficulty 4)
-)
-
-(if (and ( and (< x 50 ) ( and (> y 43) (< y 60) ) ) (>= nights_unlocked 2))
-  (set menu 1)
-  (set difficulty 8)
-)
-
-(if (and ( and (< x 50 ) ( and (> y 63) (< y 80) ) ) (>= nights_unlocked 3))
-  (set menu 1)
-  (set difficulty 12)
-)
-
-(if (and ( and (< x 50 ) ( and (> y 83) (< y 100) ) ) (>= nights_unlocked 4))
-  (set menu 1)
-  (set difficulty 16)
-)
-
-(if (and ( and (< x 50 ) ( and (> y 22) (< y 40) ) ) (>= nights_unlocked 5))
-  (set menu 1)
-  (set difficulty 20)
-)
-)
+(fn displayMenu []
+  (cls couleur-fond)
+  (print "Five Nights at CERI's" 60 0 couleur-texte)
+  (for [i 1 5]
+    (let [night (.. "Night " (tostring i))
+          color (if (<= i nights_unlocked) couleur-texte 15)]
+      (print night 10 (* i 22) color))))
 
 ;; =========================
 ;; GRAPH
@@ -93,7 +72,10 @@
    :debug       false
    :view        :office
    :cursor      :normal
-   :prev-mouse  false   ;; pour detecter leading edge du clic
+   :prev-mouse  false
+   :lever       0
+   :light       0
+   :cam         0
 
    :enemies
     [{:name "NODES" :room :nodes :timer 0 :color 2 :just-moved false}
@@ -124,28 +106,15 @@
 
 ;; =========================
 ;; ZONES UI
-;; (coordonnees sur ecran 240x136)
-;;
-;; HOVER : entrer dans la zone change la vue
-;; CLICK : clic dans la zone change la vue
-;;         + change le curseur au survol
 ;; =========================
-
-;; Zones hover invisibles (sprites par dessus)
 (global hover-zones
-  [{:x 10 :y 2  :w 220 :h 18 :target :vent  :label "VENT"}
-   {:x 10 :y 116 :w 160 :h 18 :target :gen   :label "GEN"}])
-
-;; Zones cliquables (sprites par dessus)
-(global click-zones
-  [{:x 2  :y 55 :w 18 :h 12 :target :cam-a  :label "CAM A"}
-   {:x 2  :y 72 :w 18 :h 12 :target :cam-b  :label "CAM B"}
-   {:x 220 :y 30 :w 18 :h 76 :target :porte  :label "PORTE"}])
+  [{:x 10  :y 2   :w 220 :h 18 :target :vent  :label "VENT"}
+   {:x 10  :y 116 :w 160 :h 18 :target :gen   :label "GEN"}
+   {:x 220 :y 30  :w 18  :h 76 :target :porte :label "PORTE"}])
 
 ;; =========================
 ;; HELPERS
 ;; =========================
-
 (fn in-zone? [mx my z]
   (and (>= mx z.x) (<= mx (+ z.x z.w))
        (>= my z.y) (<= my (+ z.y z.h))))
@@ -174,37 +143,58 @@
   (<= (math.random 1 20) STATE.difficulty))
 
 ;; =========================
+;; TOGGLES  (avant click-zones)
+;; =========================
+(fn toggle-light []
+  (if (= STATE.light 0)
+    (do (set activated (+ activated 1)) (tset STATE :light 1))
+    (do (set activated (- activated 1)) (tset STATE :light 0))))
+
+(fn toggle-lever []
+  (if (= STATE.lever 0)
+    (do (set activated (+ activated 1)) (tset STATE :lever 1))
+    (do (set activated (- activated 1)) (tset STATE :lever 0))))
+
+(fn toggle-cam []
+  (if (= STATE.cam 0)
+    (do (set activated (+ activated 1)) (tset STATE :cam 1))
+    (do (set activated (- activated 1)) (tset STATE :cam 0))))
+
+;; =========================
+;; CLICK-ZONES  (apres les toggles)
+;; =========================
+(global click-zones
+  [{:x 2   :y 55  :w 18 :h 12 :action toggle-light :label "Lumiere"}
+   {:x 2   :y 72  :w 18 :h 12 :action toggle-lever :label "Lever"}
+   {:x 120 :y 100 :w 18 :h 18 :action toggle-cam   :label "CAM"}])
+
+;; =========================
 ;; UI LOGIC
 ;; =========================
-
 (fn update-ui []
   (let [(mx my mb) (mouse)
         clicking   (and (= mb 1) (not STATE.prev-mouse))]
     (tset STATE :prev-mouse (= mb 1))
     (tset STATE :cursor :normal)
 
-    ;; Si on est en vue office : hover zones actives
     (when (= STATE.view :office)
       (each [_ z (ipairs hover-zones)]
         (when (in-zone? mx my z)
           (tset STATE :view z.target))))
 
-    ;; Click zones actives depuis n'importe quelle vue office-like
     (each [_ z (ipairs click-zones)]
       (when (in-zone? mx my z)
         (tset STATE :cursor :pointer)
         (when clicking
-          (tset STATE :view z.target)
-          (add-log (.. ">" z.label)))))
-
-    ;; Retour office : bouton A ou sortir de zone hover par le bas/haut
-    ;; (gere dans handle-input)
-    ))
+          (if z.action
+            (z.action)
+            (do
+              (tset STATE :view z.target)
+              (add-log (.. ">" z.label)))))))))
 
 ;; =========================
 ;; ENEMIES
 ;; =========================
-
 (fn update-enemies []
   (each [_ e (ipairs STATE.enemies)]
     (set e.just-moved false)
@@ -220,7 +210,7 @@
               (sfx 0 -1 -1 0)
               (set e.room next))))))))
 
-(local tv-stages [:tv-spawn :tv-bout :tv-milieu :tv-porte])
+(global tv-stages [:tv-spawn :tv-bout :tv-milieu :tv-porte])
 
 (fn tv-stage-index []
   (var idx 1)
@@ -251,34 +241,14 @@
 ;; =========================
 ;; DRAW VIEWS
 ;; =========================
-
-(fn draw-map-debug []
-  (each [from transitions (pairs graph)]
-    (let [fp (. room-pos from)]
-      (when fp
-        (each [_ [to _] (ipairs transitions)]
-          (let [tp (. room-pos to)]
-            (when tp (line (. fp 1) (. fp 2) (. tp 1) (. tp 2) 6)))))))
-  (each [id pos (pairs room-pos)]
-    (let [[x y] pos]
-      (rect  (- x 18) (- y 5) 36 11 0)
-      (rectb (- x 18) (- y 5) 36 11 6)
-      (print (tostring id) (- x 17) (- y 3) 7 false 1 true)))
-  (each [i e (ipairs STATE.enemies)]
-    (let [pos (. room-pos e.room)]
-      (when pos
-        (let [[x y] pos ox (* (- i 1) 8)]
-          (circ (+ x ox) (- y 10) 3 e.color))))))
-
 (fn draw-office []
-  ;; TODO: remplacer par le sprite du bureau
   (cls 13)
-  (rect 10 2  220 18 5)   ;; placeholder VENT
-  (rect 10 116 160 18 5)  ;; placeholder GEN
-  (rect 2  55  18  12 6)  ;; placeholder CAM A
-  (rect 2  72  18  12 6)  ;; placeholder CAM B
-  (rect 220 30 18  76 6)  ;; placeholder PORTE
-  (print "VENT"  100 8  0)
+  (rect 10  2   220 18 5)
+  (rect 10  116 160 18 5)
+  (rect 2   55  18  12 (if (= STATE.light 1) 7 6))
+  (rect 2   72  18  12 (if (= STATE.lever 1) 7 6))
+  (rect 220 30  18  76 6)
+  (print "VENT"  100 8   0)
   (print "GEN"   80  122 0)
   (print "A"     7   59  0)
   (print "B"     7   76  0)
@@ -287,41 +257,40 @@
   (print "R" 224 79 0)
   (print "T" 224 86 0)
   (print "E" 224 93 0)
-  ;; status bar
   (rect 0 0 240 10 0)
   (print (.. "DIFF:" STATE.difficulty " ENRV:" STATE.enervement) 2 2 7))
+
+(fn draw-enlighted []
+  (draw-office))
 
 (fn draw-vent []
   (cls 1)
   (print "-- SYSTEME VENTILATION --" 40 20 7)
-  (print "T est ici si dans tv-stages" 30 40 6)
   (print (.. "T room: " (tostring STATE.T.room)) 30 55 4)
-  (print "A=retour office" 70 120 5))
+  (print "F=retour office" 70 120 5))
 
 (fn draw-gen []
   (cls 4)
   (print "-- GENERATEUR --" 60 20 0)
-  (print "A=retour office" 70 120 0))
+  (print "F=retour office" 70 120 0))
 
-(fn draw-cam [label]
+(fn draw-cam []
   (cls 0)
-  (print (.. "-- CAMERA " label " --") 70 20 7)
-  ;; debug : ennemis dans les salles visibles par cette cam
+  (print "-- CAMERA --" 70 20 7)
   (each [i e (ipairs STATE.enemies)]
     (print (.. e.name ": " (tostring e.room)) 30 (+ 40 (* i 10)) e.color))
   (print (.. "T: " (tostring STATE.T.room)) 30 70 4)
-  (print "A=retour office" 70 120 6))
+  (print "F=retour office" 70 120 6))
 
 (fn draw-porte []
   (cls 6)
   (print "-- PORTE --" 80 20 0)
   (print "[ fermer ]" 80 60 2)
-  (print "A=retour office" 70 120 0))
+  (print "F=retour office" 70 120 0))
 
 ;; =========================
 ;; CURSEUR
 ;; =========================
-
 (fn draw-cursor []
   (let [(mx my) (mouse)]
     (if (= STATE.cursor :pointer)
@@ -335,9 +304,15 @@
         (line (+ mx 2) (+ my 5) (+ mx 5) (+ my 3) 12)))))
 
 ;; =========================
-;; DEBUG OVERLAY
+;; BATTERY
 ;; =========================
+(fn battery-update []
+  (when (> activated 0)
+    (set battery (math.max 0 (- battery (* 3 activated))))))
 
+;; =========================
+;; DEBUG
+;; =========================
 (fn draw-debug []
   (when STATE.debug
     (let [(mx my) (mouse)]
@@ -350,51 +325,59 @@
 ;; =========================
 ;; INPUT
 ;; =========================
-
 (fn handle-input []
-  (when (btnp 4) (tset STATE :view :office))
-  (when (btnp 2) (tset STATE :debug (not STATE.debug)))
-  (when (btnp 0) (tset STATE :difficulty (math.min 20 (+ STATE.difficulty 1))))
-  (when (btnp 1) (tset STATE :difficulty (math.max 1  (- STATE.difficulty 1)))))
+  (when (keyp 6)
+    (tset STATE :view :office)
+    (set menu 1))
+  (when (keyp 2)
+    (tset STATE :debug (not STATE.debug)))
+  (when (keyp 54)
+    (tset STATE :difficulty (math.min 20 (+ STATE.difficulty 1))))
+  (when (keyp 55)
+    (tset STATE :difficulty (math.max 1 (- STATE.difficulty 1)))))
 
 ;; =========================
 ;; TIC
 ;; =========================
-
 (math.randomseed 42)
 
 (fn _G.TIC []
   (var (x y left) (mouse))
 
-  (if (= menu 0)
-  (do
-  (displayMenu)
-  (if ( and (= previous_left false) (= left true))
-  (nightSelection x y))
-  )
-  )
-  (if (= menu 1)
-  (do
-  (handle-input)
-  (update-ui)
-  (update-enervement)
-  (update-enemies)
-  (update-T)
+  ;; -- MENU TITRE --
+  (when (= menu 0)
+    (displayMenu)
+    (when (and (= previous_left false) (= left true))
+      (nightSelection x y)))
 
-  (case STATE.view
-    :office (draw-office)
-    :vent   (draw-vent)
-    :gen    (draw-gen)
-    :cam-a  (draw-cam "A")
-    :cam-b  (draw-cam "B")
-    :porte  (draw-porte))
-  ))
-  
-  
+  ;; -- JEU --
+  (when (>= menu 1)
+    (handle-input)
+    (update-ui)
+    (update-enervement)
+    (update-enemies)
+    (update-T)
 
-  
-  ;; 4. Fait avancer le temps
-  (set t (+ t 0.1))
+    (when (= menu 1)
+      (case STATE.view
+        :vent   (set menu 3)
+        :gen    (set menu 5)
+        :light  (set menu 2)
+        :porte  (set menu 4)
+        :cam    (set menu 6)))
+
+    (when (= menu 1) (draw-office))
+    (when (= menu 2) (draw-enlighted))
+    (when (= menu 3) (draw-vent))
+    (when (= menu 4) (draw-porte))
+    (when (= menu 5) (draw-gen))
+    (when (= menu 6) (draw-cam)))
+
+  (set t (+ t 1))
+  (when (= (% t 60) 0) (battery-update))
 
   (draw-debug)
-  (draw-cursor))
+  (draw-cursor)
+  (print (.. "L:" STATE.light " V:" STATE.lever " C:" STATE.cam " BAT:" battery) 2 126 5)
+
+  (set previous_left left))
