@@ -42,27 +42,27 @@
 
 (lambda nightSelection [x y]
 
-(if (and ( and (< x 100 ) ( and (> y 22) (< y 40) ) ) (>= nights_unlocked 1))
+(if (and ( and (< x 50 ) ( and (> y 22) (< y 40) ) ) (>= nights_unlocked 1))
   (set menu 1)
   (set difficulty 4)
 )
 
-(if (and ( and (< x 100 ) ( and (> y 43) (< y 60) ) ) (>= nights_unlocked 2))
+(if (and ( and (< x 50 ) ( and (> y 43) (< y 60) ) ) (>= nights_unlocked 2))
   (set menu 1)
   (set difficulty 8)
 )
 
-(if (and ( and (< x 100 ) ( and (> y 63) (< y 80) ) ) (>= nights_unlocked 3))
+(if (and ( and (< x 50 ) ( and (> y 63) (< y 80) ) ) (>= nights_unlocked 3))
   (set menu 1)
   (set difficulty 12)
 )
 
-(if (and ( and (< x 100 ) ( and (> y 83) (< y 100) ) ) (>= nights_unlocked 4))
+(if (and ( and (< x 50 ) ( and (> y 83) (< y 100) ) ) (>= nights_unlocked 4))
   (set menu 1)
   (set difficulty 16)
 )
 
-(if (and ( and (< x 100 ) ( and (> y 22) (< y 40) ) ) (>= nights_unlocked 1))
+(if (and ( and (< x 50 ) ( and (> y 22) (< y 40) ) ) (>= nights_unlocked 5))
   (set menu 1)
   (set difficulty 20)
 )
@@ -76,7 +76,7 @@
   ;; 1 Black screen (clean-up)
   (cls couleur-fond)
   (var (x y left) (mouse))
-  (var pressed (and (= previous_left false) (= left true)))
+
   (if (= menu 0)
   (do
   (displayMenu)
@@ -87,10 +87,5 @@
   (nightSelection x y))
   )
   )
-  
-  
-
-
-  
   ;; 4. Fait avancer le temps
   (set t (+ t 0.1)))
