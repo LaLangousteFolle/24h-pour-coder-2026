@@ -79,6 +79,13 @@
    :light       0
    :cam         0
 
+   :nodes-flashes    0
+   :nodes-prev-light 0
+   :dm-hold-timer    0
+   :dm-hold-required 0
+   :counter-msg      ""
+   :counter-timer    0
+
    :enemies
     [{:name "NODES" :room :nodes :timer 0 :color 2 :just-moved false}
      {:name "DM"    :room :dm    :timer 0 :color 8 :just-moved false}]
@@ -143,6 +150,12 @@
 
 (fn should-move? []
   (<= (math.random 1 20) STATE.difficulty))
+
+(fn get-enemy [name]
+  (var result nil)
+  (each [_ e (ipairs STATE.enemies) &until result]
+    (when (= e.name name) (set result e)))
+  result)
 
 ;; =========================
 ;; TOGGLES  (avant click-zones)
@@ -243,6 +256,50 @@
     (tset STATE :enrv-timer 0)
     (tset STATE :enervement (math.min 100 (+ STATE.enervement 1)))))
 
+(fn update-counters []
+  (let [nodes (get-enemy "NODES")
+        dm    (get-enemy "DM")]
+
+    ;; NODES: flash light 3 times (count 0->1 edges)
+    (let [edge (and (= STATE.light 1) (= STATE.nodes-prev-light 0))]
+      (tset STATE :nodes-prev-light STATE.light)
+      (if (= nodes.room :main-room)
+        (when edge
+          (tset STATE :nodes-flashes (+ STATE.nodes-flashes 1))
+          (when (>= STATE.nodes-flashes 3)
+            (set nodes.room :nodes)
+            (set nodes.timer 0)
+            (tset STATE :nodes-flashes 0)
+            (tset STATE :counter-msg "NODES repousse !")
+            (tset STATE :counter-timer 120)
+            (add-log "NODES<OUT>")))
+        (tset STATE :nodes-flashes 0)))
+
+    ;; DM: hold lever for a random time (3-7 seconds)
+    (if (= dm.room :main-room)
+      (do
+        (when (= STATE.dm-hold-required 0)
+          (tset STATE :dm-hold-required (math.random 180 420)))
+        (if (= STATE.lever 1)
+          (do
+            (tset STATE :dm-hold-timer (+ STATE.dm-hold-timer 1))
+            (when (>= STATE.dm-hold-timer STATE.dm-hold-required)
+              (set dm.room :dm)
+              (set dm.timer 0)
+              (tset STATE :dm-hold-timer 0)
+              (tset STATE :dm-hold-required 0)
+              (tset STATE :counter-msg "DM repousse !")
+              (tset STATE :counter-timer 120)
+              (add-log "DM<OUT>")))
+          (tset STATE :dm-hold-timer 0)))
+      (do
+        (tset STATE :dm-hold-timer 0)
+        (tset STATE :dm-hold-required 0)))
+
+    ;; tick down counter message
+    (when (> STATE.counter-timer 0)
+      (tset STATE :counter-timer (- STATE.counter-timer 1)))))
+
 ;; =========================
 ;; DRAW VIEWS
 ;; =========================
@@ -264,6 +321,19 @@
   (print "E" 224 93 0)
   (rect 0 0 240 10 0)
   (print (.. "DIFF:" STATE.difficulty " ENRV:" STATE.enervement) 2 2 7)
+  ;; counter prompts
+  (let [nodes (get-enemy "NODES")
+        dm    (get-enemy "DM")]
+    (when (= nodes.room :main-room)
+      (print (.. "!! NODES !! [A] x" STATE.nodes-flashes "/3") 45 22 2))
+    (when (= dm.room :main-room)
+      (print "!! DM !! Maintiens [B]" 38 35 8)
+      (when (> STATE.dm-hold-required 0)
+        (let [prog (math.floor (* 100 (/ STATE.dm-hold-timer STATE.dm-hold-required)))]
+          (rect 70 45 prog 5 8)
+          (rectb 70 45 100 5 7))))
+    (when (> STATE.counter-timer 0)
+      (print STATE.counter-msg 65 56 7)))
   (let [bw (math.floor (* 2.4 battery))
         bc  (if (> battery 50) 11 (if (> battery 25) 4 8))]
     (rect 0 130 bw 4 bc)
@@ -296,6 +366,8 @@
   (each [i e (ipairs STATE.enemies)]
     (print (.. e.name ": " (tostring e.room)) 30 (+ 40 (* i 10)) e.color))
   (print (.. "T: " (tostring STATE.T.room)) 30 70 4)
+  (each [i msg (ipairs STATE.log)]
+    (print msg 30 (+ 80 (* i 8)) 6))
   (print "F=retour office" 70 120 6))
 
 (fn draw-porte []
@@ -390,6 +462,7 @@
         (update-enervement)
         (update-enemies)
         (update-T)
+        (update-counters)
 
         (when (= menu 1)
           (case STATE.view
