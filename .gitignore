@@ -17,3 +17,5 @@ desktop.ini
 *.sln
 *.sw?
 .local/
+
+./temp
