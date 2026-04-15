@@ -11,7 +11,7 @@
 (var gameover_timer 0)
 (var gameover_msg "")
 (var t 0)
-(var couleur-texte 2)
+(var couleur-texte 5)
 (var couleur-fond 0)
 (var menu 0)
 
