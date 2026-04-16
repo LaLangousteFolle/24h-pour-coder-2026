@@ -33,15 +33,15 @@
 
 (fn nightSelection [x y]
   (when (and (< x 50) (> y 22) (< y 40) (>= nights_unlocked 1))
-    (set menu 1) (tset STATE :difficulty 4)  (music 1))
+    (set menu 1) (tset STATE :difficulty 4)  (music 1) (sfx 30 "D#4" -1 3 7 4))
   (when (and (< x 50) (> y 43) (< y 60) (>= nights_unlocked 2))
-    (set menu 1) (tset STATE :difficulty 8)  (music 2))
+    (set menu 1) (tset STATE :difficulty 8)  (music 2) (sfx 30 "D#4" -1 3 7 4))
   (when (and (< x 50) (> y 63) (< y 80) (>= nights_unlocked 3))
-    (set menu 1) (tset STATE :difficulty 12) (music 3))
+    (set menu 1) (tset STATE :difficulty 12) (music 3) (sfx 30 "D#4" -1 3 7 4))
   (when (and (< x 50) (> y 83) (< y 100) (>= nights_unlocked 4))
-    (set menu 1) (tset STATE :difficulty 16) (music 4))
+    (set menu 1) (tset STATE :difficulty 16) (music 4) (sfx 30 "D#4" -1 3 7 4))
   (when (and (< x 50) (> y 103) (< y 120) (>= nights_unlocked 5))
-    (set menu 1) (tset STATE :difficulty 20) (music 5)))
+    (set menu 1) (tset STATE :difficulty 20) (music 5) (sfx 30 "D#4" -1 3 7 4)))
 
 (fn displayMenu []
   (cls couleur-fond)
@@ -185,8 +185,11 @@
 (fn toggle-light []
   (when (not power_out)
     (if (= STATE.light 0)
-      (do (set activated (+ activated 1)) (tset STATE :light 1))
-      (do (set activated (- activated 1)) (tset STATE :light 0)))))
+      (do (set activated (+ activated 1)) (tset STATE :light 1)
+      (sfx 29 "C#5" -1 3 15 4))
+      
+      (do (set activated (- activated 1)) (tset STATE :light 0)
+      (sfx 29 "C#4" -1 3 15 4)))))
 
 (fn toggle-lever []
   (when (not power_out)
@@ -238,9 +241,11 @@
     ;; cam nav: left/right buttons
     (when (and (= menu 6) clicking (>= my 3) (<= my 17))
       (when (and (>= mx 4) (<= mx 18))
-        (tset STATE :cam-index (% (+ STATE.cam-index (- (length cameras) 1)) (length cameras))))
+        (tset STATE :cam-index (% (+ STATE.cam-index (- (length cameras) 1)) (length cameras)))
+        (sfx 30 "D#4" -1 3 7 4) )
       (when (and (>= mx 222) (<= mx 236))
-        (tset STATE :cam-index (% (+ STATE.cam-index 1) (length cameras)))))))
+        (tset STATE :cam-index (% (+ STATE.cam-index 1) (length cameras)))
+        (sfx 30 "D#4" -1 3 7 4)))))
 
 ;; =========================
 ;; ENEMIES
