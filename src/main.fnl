@@ -109,8 +109,8 @@
    :shark-prev-click   false
 
    :enemies
-    [{:name "NODES" :room :nodes :timer 0 :color 2 :just-moved false :attack-timer 0}
-     {:name "DM"    :room :dm    :timer 0 :color 8 :just-moved false :attack-timer 0}]
+    [{:name "NODES" :room :nodes :timer 0 :color 2 :just-moved false :attack-timer 0 :sprite 418 :sw 4 :sh 4}
+     {:name "DM"    :room :dm    :timer 0 :color 8 :just-moved false :attack-timer 0 :sprite 354 :sw 2 :sh 2}]
 
    :T
     {:room       :tv-spawn
@@ -139,9 +139,9 @@
 ;; ZONES UI
 ;; =========================
 (global hover-zones
-  [{:x 10  :y 2   :w 220 :h 18 :target :vent  :label "VENT"}
-   {:x 10  :y 116 :w 160 :h 18 :target :gen   :label "GEN"}
-   {:x 220 :y 30  :w 18  :h 76 :target :porte :label "PORTE"}])
+  [;;{:x 10  :y 2   :w 220 :h 18 :target :vent  :label "VENT"}
+   {:x 10  :y 116 :w 160 :h 18 :target :gen   :label "GEN"}])
+   ;;{:x 220 :y 30  :w 18  :h 76 :target :porte :label "PORTE"})
 
 ;; =========================
 ;; HELPERS
@@ -213,7 +213,7 @@
 (global click-zones
   [{:x 2   :y 55  :w 18 :h 12 :action toggle-light :label "Lumiere"}
    {:x 2   :y 72  :w 18 :h 12 :action toggle-lever :label "Lever"}
-   {:x 120 :y 100 :w 18 :h 18 :action toggle-cam   :label "CAM"}])
+   {:x 98 :y 69 :w 32 :h 32 :action toggle-cam   :label "CAM"}])
 
 ;; =========================
 ;; UI LOGIC
@@ -324,9 +324,9 @@
               (set dm.timer 0)
               (tset STATE :dm-hold-timer 0)
               (tset STATE :dm-hold-required 0)
-              (tset STATE :counter-msg "DM repousse !")
+              (tset STATE :counter-msg "Donald repousse !")
               (tset STATE :counter-timer 120)
-              (add-log "DM<OUT>")))
+              (add-log "Donald<OUT>")))
           (tset STATE :dm-hold-timer 0)))
       (do
         (tset STATE :dm-hold-timer 0)
@@ -389,8 +389,8 @@
     (when (= STATE.shark-stage 3)
       (tset STATE :shark-attack-timer (+ STATE.shark-attack-timer 1))
       (when (and clicking
-                 (>= mx 96) (<= mx 144)
-                 (>= my 58) (<= my 86)
+                 (>= mx 160) (<= mx 192)
+                 (>= my 60) (<= my 92)
                  (or (= menu 1) (= menu 2)))
         (tset STATE :shark-stage 1)
         (tset STATE :shark-timer 0)
@@ -407,22 +407,59 @@
 ;; =========================
 (fn draw-office []
   (cls 13)
-  (rect 10  2   220 18 5)
-  (rect 10  116 160 18 5)
-  (rect 2   55  18  12 (if (= STATE.light 1) 7 6))
-  (rect 2   72  18  12 (if (= STATE.lever 1) 7 6))
-  (rect 220 30  18  76 6)
-  (print "VENT"  100 8   0)
-  (print "GEN"   80  122 0)
-  (print "A"     7   59  0)
-  (print "B"     7   76  0)
-  (print "P" 224 65 0)
-  (print "O" 224 72 0)
-  (print "R" 224 79 0)
-  (print "T" 224 86 0)
-  (print "E" 224 93 0)
-  (rect 0 0 240 10 0)
-  (print (.. "DIFF:" STATE.difficulty " ENRV:" STATE.enervement) 2 2 7)
+  ;;(rect 10  2   220 18 5)
+  ;;(rect 10  116 160 18 5)
+  ;;(rect 2   55  18  12 (if (= STATE.light 1) 7 6))
+  ;;(rect 2   72  18  12 (if (= STATE.lever 1) 7 6))
+  ;;(rect 220 30  18  76 6)
+  ;;(print "VENT"  100 8   0)
+  ;;(print "GEN"   80  122 0)
+  ;;(print "A"     7   59  0)
+  ;;(print "B"     7   76  0)
+  ;;(print "P" 224 65 0)
+  ;;(print "O" 224 72 0)
+  ;;(print "R" 224 79 0)
+  ;;(print "T" 224 86 0)
+  ;;(print "E" 224 93 0)
+  (if (= STATE.light 1) 
+  (do (map 30 0 240 136 0 0 -1 1)
+  (if (= STATE.shark-stage 2)
+      (spr 388 60 57 11 2 0 0 2 2))
+    (if (= STATE.shark-stage 3)
+      (spr 384 160 57 11 2 0 0 2 2))))
+  (if (= STATE.light 0) (map 150 0 240 136 0 0 -1 1))
+
+  
+  (if (= STATE.lever 0) (spr 268 7 72 11 1 0 0 2 2)
+  (do
+  (spr 262 28 0 11 2 0 0 2 2)
+  (spr 264 60 0 11 2 0 0 2 2)
+  (spr 264 92 0 11 2 0 0 2 2)
+  (spr 264 124 0 11 2 0 0 2 2)
+  (spr 264 156 0 11 2 0 0 2 2)
+  (spr 262 179 0 11 2 1 0 2 2)
+
+  (spr 294 28 32 11 2 0 0 2 2)
+  (spr 296 60 32 11 2 0 0 2 2)
+  (spr 296 92 32 11 2 0 0 2 2)
+  (spr 296 124 32 11 2 0 0 2 2)
+  (spr 296 156 32 11 2 0 0 2 2)
+  (spr 294 179 32 11 2 1 0 2 2)
+
+  (spr 294 28 64 11 2 0 0 2 2)
+  (spr 296 60 64 11 2 0 0 2 2)
+  (spr 296 92 64 11 2 0 0 2 2)
+  (spr 296 124 64 11 2 0 0 2 2)
+  (spr 296 156 64 11 2 0 0 2 2)
+  (spr 294 179 64 11 2 1 0 2 2)))
+  (if (= STATE.lever 1) (spr 270 7 72 11 1 0 0 2 2))
+  (if (= STATE.light 0) (spr 300 7 55 11 1 0 0 2 2))
+  (if (= STATE.light 1) (spr 302 7 55 11 1 0 0 2 2))
+  (spr 292 98 69 11 2 0 0 2 2)
+
+  
+  ;;(rect 0 0 240 10 0)
+  ;;(print (.. "DIFF:" STATE.difficulty " ENRV:" STATE.enervement) 2 2 7)
   ;; counter prompts
   (let [nodes (get-enemy "NODES")
         dm    (get-enemy "DM")]
@@ -433,19 +470,12 @@
       (when (> STATE.dm-hold-required 0)
         (let [prog (math.floor (* 100 (/ STATE.dm-hold-timer STATE.dm-hold-required)))]
           (rect 70 45 prog 5 8)
-          (rectb 70 45 100 5 9))))
-    (when (> STATE.counter-timer 0)
-      (print STATE.counter-msg 65 56 7))
-      
-      )
+          ))))
   ;; shark
   (when (> STATE.shark-stage 0)
-    (if (= STATE.shark-stage 2)
-      (spr 388 60 78 11 1 0 0 2 2)
-      (if (= STATE.shark-stage 3)
-        (spr 384 60 78 11 1 0 0 2 2)))
+    
     (when (= STATE.shark-stage 3)
-      (rectb 96 58 48 28 8)
+      ;;(rectb 96 58 48 28 8)
       (let [secs (math.max 1 (math.ceil (/ (- 300 STATE.shark-attack-timer) 60)))]
         (print (.. secs "s") 116 88 8))))
   (let [bw (math.floor (* 2.4 battery))
@@ -508,32 +538,40 @@
     (print (.. "Retour dans " (tostring secs) "s") 70 80 6)))
 
 (fn draw-cam []
-  (cls 1)
+  (cls 0)
   (let [cam (. cameras (+ STATE.cam-index 1))
         nx  (math.floor (/ (- 240 (* (length cam.name) 6)) 2))]
     ;; top bar
+    (if (= STATE.cam-index 0) (map 90 0 240 136 0 0 -1 1))
+    (if (= STATE.cam-index 1) (map 60 0 240 136 0 0 -1 1))
+    (if (= STATE.cam-index 3) 
+    (do
+    (map 120 0 240 136 0 0 -1 1) 
+    (spr 418 120 78 11 1 0 0 4 4)))
+    (if (= STATE.cam-index 2) (map 0 0 240 136 0 0 -1 1))
     (rect 0 0 240 20 0)
     ;; left button
     (spr  356 4 3 11 1 1 0 2 2)
     ;; right button
     (spr  356 222 3 11 1 0 0 2 2)
-    ;; camera name centered
     (print cam.name nx 7 7)
+    
+    )
+    ;; camera name centered
+  
+
+
+  
+  
     (line 0 20 239 20 7)
     ;; enemies present in this room
-    (var row 0)
-    (each [_ e (ipairs STATE.enemies)]
-      (when (= e.room cam.room)
-        (print (.. "!! " e.name " !!") 85 (+ 55 (* row 12)) e.color)
-        (set row (+ row 1))))
-    (when (= STATE.T.room cam.room)
-      (print "!! T !!" 96 (+ 55 (* row 12)) 4)
-      (set row (+ row 1)))
-    (when (= row 0)
-      (print "Calme..." 94 65 5))
-    ;; event log
-    (each [i msg (ipairs STATE.log)]
-      (print msg 10 (+ 100 (* i 8)) 6))))
+    (let [cam (. cameras (+ STATE.cam-index 1))]
+      (each [_ e (ipairs STATE.enemies)]
+        (when (= e.room cam.room)
+          (spr e.sprite
+               (math.floor (/ (- 240 (* e.sw 8)) 2))
+               (math.floor (/ (- 116 (* e.sh 8)) 2))
+               11 1 0 0 e.sw e.sh)))))
 
 (fn draw-porte []
   (cls 6)
