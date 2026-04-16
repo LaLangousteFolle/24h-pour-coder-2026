@@ -33,15 +33,15 @@
 
 (fn nightSelection [x y]
   (when (and (< x 50) (> y 22) (< y 40) (>= nights_unlocked 1))
-    (set menu 1) (tset STATE :difficulty 4))
+    (set menu 1) (tset STATE :difficulty 4)  (music 1))
   (when (and (< x 50) (> y 43) (< y 60) (>= nights_unlocked 2))
-    (set menu 1) (tset STATE :difficulty 8))
+    (set menu 1) (tset STATE :difficulty 8)  (music 2))
   (when (and (< x 50) (> y 63) (< y 80) (>= nights_unlocked 3))
-    (set menu 1) (tset STATE :difficulty 12))
+    (set menu 1) (tset STATE :difficulty 12) (music 3))
   (when (and (< x 50) (> y 83) (< y 100) (>= nights_unlocked 4))
-    (set menu 1) (tset STATE :difficulty 16))
+    (set menu 1) (tset STATE :difficulty 16) (music 4))
   (when (and (< x 50) (> y 103) (< y 120) (>= nights_unlocked 5))
-    (set menu 1) (tset STATE :difficulty 20)))
+    (set menu 1) (tset STATE :difficulty 20) (music 5)))
 
 (fn displayMenu []
   (cls couleur-fond)
@@ -436,7 +436,7 @@
   ;; shark
   (when (> STATE.shark-stage 0)
     (if (= STATE.shark-stage 2)
-      (spr 388 60 78 11 1 0 0 2 2))
+      (spr 388 60 78 11 1 0 0 2 2)
       (if (= STATE.shark-stage 3)
         (spr 384 60 78 11 1 0 0 2 2)))
     (when (= STATE.shark-stage 3)
@@ -446,7 +446,7 @@
   (let [bw (math.floor (* 2.4 battery))
         bc  (if (> battery 50) 11 (if (> battery 25) 4 8))]
     (rect 0 130 bw 4 bc)
-    (rectb 0 130 240 4 7))
+    (rectb 0 130 240 4 7)))
 
 (fn draw-enlighted []
   (draw-office))
@@ -458,15 +458,16 @@
   (print "F=retour office" 70 120 5))
 
 (fn draw-gen []
-  (cls 4)
-  (print "-- GENERATEUR --" 60 20 0)
+  (cls 0)
+  (spr 256 60 20 11 4 0 0 4 2)
+  (print "-- GENERATEUR --" 10 10 5)
   ;; 5 progress slots
   (for [i 1 5]
     (let [bx (+ 68 (* (- i 1) 22))]
-      (rect bx 33 18 8 (if (<= i STATE.qte-hits) 11 0))
-      (rectb bx 33 18 8 7)))
+      (rect bx 95 18 8 (if (<= i STATE.qte-hits) 11 0))
+      (rectb bx 95 18 8 7)))
   ;; gauge
-  (let [gx 40  gy 58  gw 160  gh 12
+  (let [gx 40  gy 105  gw 160  gh 12
         cx (math.floor STATE.qte-cursor)]
     (rect gx gy gw gh 0)
     (rect (+ gx STATE.qte-red-pos) gy 25 gh 8)
@@ -475,14 +476,15 @@
   ;; feedback
   (when (> STATE.qte-flash 0)
     (if (not STATE.qte-flash-ok)
-    (do
-    (print "RATE !"             96 75 8)
-    (sfx 22 "C-2" -1 3 15 5))
+      (do
+        (print "RATE !"             96 75 8)
+        (sfx 22 "C-2" -1 3 15 5))
       (if (> STATE.qte-flash 60)
         (print "BATTERIE PLEINE !" 57 75 11)
-        (print "SUCCES !"          88 75 11)
-        (sfx 23 "C-1" -1 3 15 5)
-        )))
+        (do
+          (spr 260 124 20 11 4 0 0 2 2)
+          (print "SUCCES !"          88 75 11)
+          (sfx 23 "C-2" -1 3 15 5)))))
   (print "[ESPACE] pour recharger" 40 90 0)
   (print "F=retour office" 70 120 0))
 
@@ -595,6 +597,7 @@
 ;; TIC
 ;; =========================
 (math.randomseed 42)
+(music 0)
 
 (fn _G.TIC []
   (var (x y left) (mouse))
