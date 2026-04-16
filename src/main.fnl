@@ -430,8 +430,10 @@
       (print STATE.counter-msg 65 56 7)))
   ;; shark
   (when (> STATE.shark-stage 0)
+    (if (= STATE.shark-stage 2)
+      (spr 388 60 78 11 0 0 16 16))
     (print (.. "stg" STATE.shark-stage) 108 70
-      (if (= STATE.shark-stage 3) 8 7))
+      (if (= STATE.shark-stage 3) 8 7)))
     (when (= STATE.shark-stage 3)
       (rectb 96 58 48 28 8)
       (let [secs (math.max 1 (math.ceil (/ (- 300 STATE.shark-attack-timer) 60)))]
@@ -439,7 +441,7 @@
   (let [bw (math.floor (* 2.4 battery))
         bc  (if (> battery 50) 11 (if (> battery 25) 4 8))]
     (rect 0 130 bw 4 bc)
-    (rectb 0 130 240 4 7)))
+    (rectb 0 130 240 4 7))
 
 (fn draw-enlighted []
   (draw-office))
