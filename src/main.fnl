@@ -22,7 +22,7 @@
 ;; menu 4 -> porte droite
 ;; menu 5 -> generateur
 
-(var nights_unlocked 1)
+(var nights_unlocked 5)
 (var nights_completed 0)
 (var difficulty 20)
 (var previous_left false)
@@ -33,7 +33,7 @@
 
 (fn nightSelection [x y]
   (when (and (< x 50) (> y 22) (< y 40) (>= nights_unlocked 1))
-    (set menu 1) (tset STATE :difficulty 10)  (music 1) (sfx 30 "D#4" -1 3 7 4))
+    (set menu 1) (tset STATE :difficulty 4)  (music 1) (sfx 30 "D#4" -1 3 7 4))
   (when (and (< x 50) (> y 43) (< y 60) (>= nights_unlocked 2))
     (set menu 1) (tset STATE :difficulty 8)  (music 2) (sfx 30 "D#4" -1 3 7 4))
   (when (and (< x 50) (> y 63) (< y 80) (>= nights_unlocked 3))
@@ -394,13 +394,16 @@
                  (or (= menu 1) (= menu 2)))
         (tset STATE :shark-stage 1)
         (tset STATE :shark-timer 0)
-        (tset STATE :shark-attack-timer 0))
+        (tset STATE :shark-attack-timer 0)
+        (sfx 24 "A-6" -1 3 15 5))
       (when (>= STATE.shark-attack-timer 300)
         (set battery (math.max 0 (- battery 50)))
         (add-log "SHARK-50bat")
         (tset STATE :shark-stage 0)
         (tset STATE :shark-timer 0)
-        (tset STATE :shark-attack-timer 0)))))
+        (tset STATE :shark-attack-timer 0)
+        (sfx 19 "E-1" -1 1 15 6)
+        ))))
 
 ;; =========================
 ;; DRAW VIEWS
@@ -453,8 +456,8 @@
   (spr 296 156 64 11 2 0 0 2 2)
   (spr 294 179 64 11 2 1 0 2 2)))
   (if (= STATE.lever 1) (spr 270 7 72 11 1 0 0 2 2))
-  (if (= STATE.light 0) (spr 300 7 55 11 1 0 0 2 2))
-  (if (= STATE.light 1) (spr 302 7 55 11 1 0 0 2 2))
+  (if (= STATE.light 1) (spr 300 7 55 11 1 0 0 2 2))
+  (if (= STATE.light 0) (spr 302 7 55 11 1 0 0 2 2))
   (spr 292 98 69 11 2 0 0 2 2)
 
   
@@ -513,13 +516,13 @@
     (if (not STATE.qte-flash-ok)
       (do
         (print "RATE !"             96 75 8)
-        (sfx 22 "C-2" -1 3 15 5))
+        (sfx 22 "C-2" -1 3 10 5))
       (if (> STATE.qte-flash 60)
         (print "BATTERIE PLEINE !" 57 75 11)
         (do
           (spr 260 124 20 11 4 0 0 2 2)
           (print "SUCCES !"          88 75 11)
-          (sfx 23 "C-2" -1 3 15 5)))))
+          (sfx 23 "C-2" -1 3 10 5)))))
   (print "[ESPACE] pour recharger" 40 90 0)
   (print "F=retour office" 70 120 0))
 
@@ -535,7 +538,8 @@
   (print "GAME OVER" 85 45 8)
   (print gameover_msg 55 62 7)
   (let [secs (math.max 0 (- 5 (math.floor (/ gameover_timer 60))))]
-    (print (.. "Retour dans " (tostring secs) "s") 70 80 6)))
+    (print (.. "Retour dans " (tostring secs) "s") 70 80 6))
+  (music 0))
 
 (fn draw-cam []
   (cls 0)
@@ -679,7 +683,8 @@
         (when (>= gameover_timer 300)
           (set gameover false)
           (set gameover_timer 0)
-          (set menu 0)))
+          (set menu 0)
+          (music 0)))
       power_out
       (do
         (set power_out_timer (+ power_out_timer 1))
@@ -719,6 +724,5 @@
 
   (draw-debug)
   (draw-cursor)
-  (print (.. "L:" STATE.light " V:" STATE.lever " C:" STATE.cam " BAT:" battery) 2 126 8)
 
   (set previous_left left))
