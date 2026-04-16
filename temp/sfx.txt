@@ -1,6 +1,0 @@
-- toc toc metal 
-- bruit pas
-- bruit strident
-- bruit devissement
-- bruit appui bouton
-- game over
