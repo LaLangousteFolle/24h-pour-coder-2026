@@ -33,7 +33,7 @@
 
 (fn nightSelection [x y]
   (when (and (< x 50) (> y 22) (< y 40) (>= nights_unlocked 1))
-    (set menu 1) (tset STATE :difficulty 4)  (music 1) (sfx 30 "D#4" -1 3 7 4))
+    (set menu 1) (tset STATE :difficulty 10)  (music 1) (sfx 30 "D#4" -1 3 7 4))
   (when (and (< x 50) (> y 43) (< y 60) (>= nights_unlocked 2))
     (set menu 1) (tset STATE :difficulty 8)  (music 2) (sfx 30 "D#4" -1 3 7 4))
   (when (and (< x 50) (> y 63) (< y 80) (>= nights_unlocked 3))
