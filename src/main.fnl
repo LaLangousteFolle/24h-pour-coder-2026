@@ -191,14 +191,18 @@
 (fn toggle-lever []
   (when (not power_out)
     (if (= STATE.lever 0)
-      (do (set activated (+ activated 1)) (tset STATE :lever 1))
-      (do (set activated (- activated 1)) (tset STATE :lever 0)))))
+      (do (set activated (+ activated 1)) (tset STATE :lever 1) 
+      (sfx 17 "C-3" -1 3 15 5)
+      )
+      (do (set activated (- activated 1)) (tset STATE :lever 0) 
+      (sfx 16 "C-4" -1 3 15 5)
+      ))))
 
 (fn toggle-cam []
   (when (not power_out)
     (if (= STATE.cam 0)
-      (do (set activated (+ activated 1)) (tset STATE :cam 1) (tset STATE :view :cam))
-      (do (set activated (- activated 1)) (tset STATE :cam 0) (tset STATE :view :office) (set menu 1)))))
+      (do (set activated (+ activated 1)) (tset STATE :cam 1) (tset STATE :view :cam) (sfx 18 "C-6" -1 3 15 5))
+      (do (set activated (- activated 1)) (tset STATE :cam 0) (tset STATE :view :office) (set menu 1) (sfx 18 "C-6" -1 3 15 5)))))
 
 ;; =========================
 ;; CLICK-ZONES  (apres les toggles)
@@ -253,7 +257,6 @@
             (let [next (weighted-pick transitions)]
               (set e.just-moved true)
               (add-log (.. e.name "->" (tostring next)))
-              (sfx 0 -1 -1 0)
               (set e.room next))))))))
 
 (global tv-stages [:tv-spawn :tv-bout :tv-milieu :tv-porte])
@@ -276,7 +279,7 @@
             (set t.just-moved true)
             (set t.room (. tv-stages (+ idx 1)))
             (add-log (.. "T->" (tostring t.room)))
-            (sfx 1 -1 -1 0)))))))
+            ))))))
 
 (fn update-enervement []
   (tset STATE :enrv-timer (+ STATE.enrv-timer 1))
@@ -419,21 +422,23 @@
   (let [nodes (get-enemy "NODES")
         dm    (get-enemy "DM")]
     (when (= nodes.room :main-room)
-      (print (.. "!! NODES !! [A] x" STATE.nodes-flashes "/3") 45 22 2))
+      (spr 418 120 42 11 1 0 0 4 4))
     (when (= dm.room :main-room)
-      (print "!! DM !! Maintiens [B]" 38 35 8)
+      (spr 354 165 54 11 1 0 0 2 2)
       (when (> STATE.dm-hold-required 0)
         (let [prog (math.floor (* 100 (/ STATE.dm-hold-timer STATE.dm-hold-required)))]
           (rect 70 45 prog 5 8)
-          (rectb 70 45 100 5 7))))
+          (rectb 70 45 100 5 9))))
     (when (> STATE.counter-timer 0)
-      (print STATE.counter-msg 65 56 7)))
+      (print STATE.counter-msg 65 56 7))
+      
+      )
   ;; shark
   (when (> STATE.shark-stage 0)
     (if (= STATE.shark-stage 2)
-      (spr 388 60 78 11 0 0 16 16))
-    (print (.. "stg" STATE.shark-stage) 108 70
-      (if (= STATE.shark-stage 3) 8 7)))
+      (spr 388 60 78 11 1 0 0 2 2))
+      (if (= STATE.shark-stage 3)
+        (spr 384 60 78 11 1 0 0 2 2)))
     (when (= STATE.shark-stage 3)
       (rectb 96 58 48 28 8)
       (let [secs (math.max 1 (math.ceil (/ (- 300 STATE.shark-attack-timer) 60)))]
@@ -470,10 +475,14 @@
   ;; feedback
   (when (> STATE.qte-flash 0)
     (if (not STATE.qte-flash-ok)
-      (print "RATE !"             96 75 8)
+    (do
+    (print "RATE !"             96 75 8)
+    (sfx 22 "C-2" -1 3 15 5))
       (if (> STATE.qte-flash 60)
         (print "BATTERIE PLEINE !" 57 75 11)
-        (print "SUCCES !"          88 75 11))))
+        (print "SUCCES !"          88 75 11)
+        (sfx 23 "C-1" -1 3 15 5)
+        )))
   (print "[ESPACE] pour recharger" 40 90 0)
   (print "F=retour office" 70 120 0))
 
@@ -498,11 +507,9 @@
     ;; top bar
     (rect 0 0 240 20 0)
     ;; left button
-    (rectb 4 3 14 14 7)
-    (print "<" 8 7 7)
+    (spr  356 4 3 11 1 1 0 2 2)
     ;; right button
-    (rectb 222 3 14 14 7)
-    (print ">" 226 7 7)
+    (spr  356 222 3 11 1 0 0 2 2)
     ;; camera name centered
     (print cam.name nx 7 7)
     (line 0 20 239 20 7)
